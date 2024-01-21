@@ -9,7 +9,6 @@ library(AnnotationDbi)
 library(Homo.sapiens)
 library(tibble)
 library(stringr)
-library(glmnet)
 library(fgsea)
 library(msigdbr)
 library(dplyr)
@@ -45,7 +44,6 @@ GeneSymbolAnnot <- function(input_matrix, justver = F)
   }
   return(input_matrix)
 }
-
 
 
 
@@ -151,22 +149,6 @@ Heatmap(cormat, cluster_rows = T, cluster_columns = T,
         top_annotation =  annot_sscor, 
         heatmap_legend_param=list(title="Correlation Scores"),)
 
-####Scatterplot for age effects of genes in nowashout matrix
-agedf <- GeneSymbolAnnot(tpmmat)
-agedf$ensembl_gene_id <- NULL
-agedf <- t(agedf)
-colnames(agedf) <- agedf[47,]
-agedf <- agedf[-47,]
-agedf <- as.data.frame(agedf)
-
-agedf[] <- lapply(agedf, as.numeric)
-agedf <- log2(agedf + 1)
-
-agedf$agecategory <- sampleTable$agecategory
-agedf$condition<- sampleTable$condition
-agedf <- agedf[!duplicated(as.list(agedf))]
-ggplot(agedf, aes(condition, ZBTB7B)) +
-  geom_point(aes(color=agecategory), size=3)
 
 
 ####Run SNM for sex and age as fixed effects
@@ -218,21 +200,6 @@ ggplot(fgseaResTidy, aes(reorder(pathway, NES), NES)) +
        title="Hallmark pathways NES from GSEA (Limma matrix, age and sex with SNM, subject with duplicateCorrelation())") + 
   scale_fill_manual(
     values = c("#d7e3f5","#89ABE3")) +theme_classic()
-
-####Calculating TPMs
-#Calculating transcript length from GTF file
-#Importing the GTF file also used for HTSeq
-txdb <- makeTxDbFromGFF("C:/Users/varsh/Desktop/GT Research/HU_Response_Omics_2023/gencode.v42.annotation.gtf",format="gtf")
-#Collect exons by gene ID
-exons.list.per.gene <- exonsBy(txdb,by="gene")
-#For each gene, reduce all the exons to a set of non overlapping exons, 
-#calculate their lengths (widths) and sum them
-exonic.gene.sizes <- sum(width(reduce(exons.list.per.gene)))
-#Calculate TPMs
-tpmmat <- counts / exonic.gene.sizes
-tpmmat <- t( t(tpmmat) * 1e6 / colSums(tpmmat) )
-tpmmat <- tpmmat[rowSums(tpmmat[])>0,]
-#Duplicates: "ENSG00000230417" "ENSG00000276085"
 
 ##########################################################
 ####Correlation test between all genes and corrected.HbF
@@ -377,234 +344,3 @@ Heatmap(ssgsea_scores_t, cluster_rows = F, cluster_columns = F,
              bottom_annotation=NULL,
         top_annotation =  ha, heatmap_legend_param=list(title="GSVA Scores"))
 
-#Test correlation between GSVA scores and condition age
-gsva_main <- data.frame(matrix(nrow=0, ncol=4))
-for(k in 6:9)
-{
-HU_age <- heatmap_ann$Age[24:46]
-gsva <- ssgsea_scores_t[k, 24:46]
-gsva_scat1 <- as.data.frame(cbind(HU_age, gsva))
-gsva_scat1$condition = "pre-HU"
-cf <- coef(lm(gsva_scat1$gsva~gsva_scat1$HU_age))
-print(paste("Slope for pathway pre-HU", rownames(ssgsea_scores_t)[k],"is", cf[2]))
-HU_age <- heatmap_ann$Age[1:23]
-gsva <- ssgsea_scores_t[k, 1:23]
-gsva_scat2 <- as.data.frame(cbind(HU_age, gsva))
-gsva_scat2$condition = "HU MTD"
-cf <- coef(lm(gsva_scat2$gsva~gsva_scat2$HU_age))
-print(paste("Slope for pathway HU MTD", rownames(ssgsea_scores_t)[k],"is", cf[2]))
-gsva_scat <- rbind(gsva_scat1, gsva_scat2)
-gsva_scat$pathway <- rownames(ssgsea_scores_t)[k]
-gsva_main <- rbind(gsva_main, gsva_scat)
-}
-
-ggplot(gsva_main, aes(x = HU_age, y = gsva)) + 
-  geom_point() + 
-  geom_smooth(method = "lm", se = FALSE)  +
-  theme_light() + 
-  ggtitle("GSVA scores vs Age - pre HU and HU MTD (Pathways downregulated at HU MTD)") +
-  xlab("Age (yrs)") + 
-  ylab("GSVA scores")+
-  facet_grid(condition ~ pathway) +
-  theme(strip.text = element_text(size = 11, 
-                                    color="black", face="bold"))
-
-
-
-
-
-
-####Axes of variation
-tcell <- c("BIN1", "ANXA2R", "DDX24", "NOP53", "IMP3", "LAGE3", "LIME1", "OCIAD2",
-           "SAE1", "SNRPD2")
-reticulocyte <- c("EPB42", "GMPR", "IFIT1B", "OR2W3", "PBX1", "SELENBP1", "SLC4A1", "SLC6A10P", 
-                  "SNCA", "TNS1")
-neutrophil <- c("CXCR1", "C5AR1", "NUP214", "AQP9", "PHC2", "SIRPA", "TSEN34", 
-                "MBOAT7", "HCK", "JAML")
-bcell <- c("AFF3", "BLK", "CD19", "CD72", "CD79A", "EBF1", "NIBAN3", "FCRLA",
-           "POU2AF1", "VPREB3")
-interferon <- c("IFIT2", "HERC5", "RSAD2", "EPSTI1", "OAS3", "IRF7", "SAMD9L",
-                "SERPING1", "MX1", "DDX58")
-axisg <- c("BCLAF1", "DYRK1A", "HNRNPK", "NPTN", "TENT2", "SLK", "SRP54",
-           "TRIM33", "WIPF1", "ZFAND5")
-counts_anno <- GeneSymbolAnnot(counts_TMM)
-subset_tcell <- counts_anno[counts_anno$hgnc_symbol %in% reticulocyte,]
-subset_tcell$ensembl_gene_id <- NULL
-subset_tcell$hgnc_symbol <- NULL
-#Pre-HU dataframe
-col_odd <- seq_len(ncol(subset_tcell)) %% 2
-tcell_pre_HU <- subset_tcell[ , col_odd == 1]
-results <- prcomp(t(tcell_pre_HU), scale=TRUE)$x
-axis_tcell1 <- as.data.frame(results[,1])
-colnames(axis_tcell1) <- c("pc1")
-#HU MTD dataframe
-tcell_HU_MTD <- subset_tcell[ , col_odd == 0]
-results <- prcomp(t(tcell_HU_MTD), scale=TRUE)$x
-axis_tcell2 <- as.data.frame(results[,1])
-colnames(axis_tcell2) <- c("pc1")
-summary(results) #Proportion of variance should be high
-newdf <- rbind(axis_tcell1, axis_tcell2)
-newdf$condition <- c(rep("pre_HU", 23), rep("HU_MTD", 23))
-ggplot(newdf, aes(x = condition, y = pc1, color = condition)) +
-  geom_point()
-t.test(axis_tcell1$pc1, axis_tcell2$pc1, paired=F)
-ggplot()
-
-####Find genes in those 4 signatures
-rownames(counts_TMM) <- str_replace(rownames(counts_TMM), "\\.\\d+$", "")
-subset_comm <- counts_TMM[rownames(counts_TMM) %in% commongenes,]
-subset_comm <- subset(subset_comm, select = -c(HU11_counts.txt, HU12_counts.txt))
-results <- prcomp(t(subset_comm), scale=FALSE)$x
-axis_subset_corr$comm <- results[,1]
-ggplot(axis_subset_corr, aes(x = comm, y = PC1))  +
-  geom_point()
-cor.test(axis_subset_corr$PC1, axis_subset_corr$comm)
-
-####Volcano plot
-ggplot(data=res, aes(x=logFC, y=-log10(adj.P.Val))) + geom_point() + theme_minimal()
-Heatmap(snm_counts)
-
-####nonHbF Hu benefits
-gmtfile <- gmtPathways("C:/Users/varsh/Downloads/gene_set_library_crisp.gmt")
-resSig <- res
-pathwaysH = gmtfile
-resSig$stat <- -log10(resSig$P.Value)*resSig$logFC
-resSig$ensembl_gene_id <- rownames(resSig)
-res2 <- resSig %>% 
-  dplyr::select(hgnc_symbol, stat) %>% 
-  na.omit() %>% 
-  distinct() %>% 
-  group_by(hgnc_symbol) %>% 
-  summarize(stat=mean(stat))
-ranks <- deframe(res2)
-set.seed(42)
-fgseaRes <- fgsea(pathways=pathwaysH, stats=ranks)
-fgseaResTidy <- fgseaRes %>%
-  as_tibble() %>%
-  arrange(desc(NES))
-#Plotting it
-ggplot(fgseaResTidy, aes(reorder(pathway, NES), NES)) +
-  geom_col(aes(fill=padj<0.05)) +
-  coord_flip() +
-  labs(x="Pathway", y="Normalized Enrichment Score",
-       title="Hallmark pathways NES from GSEA (Limma matrix, age and sex with SNM, subject with duplicateCorrelation())") + 
-  theme_minimal()
-
-
-####################################################
-library(celldex)
-ref <- BlueprintEncodeData()
-
-rbc_genes <- gmtfile$'erythrocyte'
-fetal_hemo <- c("HBA1")
-rif <- read.csv("C:/Users/varsh/Downloads/rbc_rif_harmonizome.csv", header= F)
-rif_genes <- rif$V3
-cd22 <-read.csv("C:/Users/varsh/Desktop/GT Research/HU_Response_Omics_2023/PC1_ToppFun.csv", h =T)
-cd22_path <- cd22$heme_scavenging
-cd22_path <- setdiff(cd22_path, c("", "JCHAIN"))
-####Calculate PC1 scores for RBC genes and see if it correlates with Hbf levels
-counts_anno <- GeneSymbolAnnot(snm_counts)
-#counts_anno <- subset(counts_anno, select  = -c(HU11_counts.txt, HU12_counts.txt))
-subset_tcell <- counts_anno[counts_anno$hgnc_symbol %in% cd22_path,]
-subset_tcell$ensembl_gene_id <- NULL
-subset_tcell$hgnc_symbol <- NULL#Pre-HU dataframe
-results <- prcomp(t(subset_tcell),  scale=T)$x
-axis_tcell1 <- as.data.frame(results[,1])
-colnames(axis_tcell1) <- c("pc1")
-metadata_washout <- subset(metadata_washout, !(metadata_washout$RNA.ID %in% c("HU11","HU12","HU21","HU22","HU35","HU36")))
-#metadata_washout <- read.csv("C:/Users/varsh/Downloads/HUresponse_washout.csv", 
-#                             header=TRUE)
-cor.test(axis_tcell1$pc1, log(metadata_washout$corrected.HbF))
-ggplot(metadata_washout, aes(x=(corrected.HbF))) + geom_density()
-ggplot(metadata_washout, aes(x=log(corrected.HbF))) + geom_density()
-
-
-####Scatterplot of HBG1/HBG2 vs corrected.HbF
-hbgplot <- subset(metadata_washout, select=c(corrected.HbF))
-hbgplot$HBG1 <- as.numeric(counts_TMM['ENSG00000213934.9',])
-hbgplot$HBG2 <- as.numeric(counts_TMM['ENSG00000196565.15',])
-library(ggplot2)
-ggplot(hbgplot, aes(x=corrected.HbF, y=HBG1, label=RNA.ID), size=15)  +
-  geom_point(aes(color=Drug.status)) + xlab("Corrected HbF%") + ylab("HBG1 TMM/log")+ geom_text(hjust=0, vjust=0) 
-hbg <- data.frame(exp=unlist(hbgplot, use.names = FALSE))
-hbg$gene <- c(rep("HBG1", 50), rep("HBG2", 50))
-ggplot(hbg, aes(x=gene, y=exp)) + geom_violin()+ geom_boxplot(width=0.1) + theme_classic()
-#For HBG1/G2 split plot
-hbgplot$corrected.HbF <- NULL
-ordered <- c(seq(1,50,2), seq(2,51,2))
-hbgplot <- hbgplot[c(ordered),]
-hbg <- data.frame(exp=unlist(hbgplot, use.names = FALSE))
-hbg$gene <- c(rep("HBG1: pre-HU", 25), rep("HBG1: HU MTD", 25),
-              rep("HBG2: pre-HU", 25), rep("HBG2: HU MTD", 25))
-hbg$condition <- c(rep("pre-HU", 25), rep("HU MTD", 25),
-                   rep("pre-HU", 25), rep("HU MTD", 25))
-hbg$reorder <- as.vector(1:nrow(hbg))
-ggplot(hbg, aes(x=fct_reorder(gene, reorder, sum), y=exp, fill=condition)) + 
-  geom_violin()+ geom_boxplot(width=0.1) + theme_classic() +
-  xlab("Gene") + ylab("Expression (TMM-normalized and log-transformed)")+
-  ggtitle("HBG1/G2 Expression in pre-HU and HU MTD")
- 
-####Linear model
-transpose_counts1 <- subset(transpose_counts, select=as.vector(strongcor$gene))
-corrgenes <- data.frame(matrix(NA, nrow = 23164, ncol = 4))
-corrgenes[,1] <- colnames(transpose_counts)
-colnames(corrgenes) <- c("gene", "coeff", "pval", "coeffage")
-for(i in 1:23164)
-{
-  lmres <- lm(metadata_washout$corrected.HbF ~ metadata_washout$age + transpose_counts1[,i])
-  lmres_est <- summary(lmres)
-  corrgenes[i,2] <- lmres_est$coefficients[3,1]
-  corrgenes[i,3] <- lmres_est$coefficients[3,4]
-  corrgenes[i,4] <- lmres_est$coefficients[2,1]
-}
-corrgenes$padj <- p.adjust(corrgenes$pval, method = "BH")
-x <- lm(metadata_washout$corrected.HbF ~ metadata_washout$agebinary + transpose_counts[,2])
-lmres <- summary(x)
-
-
-####Correlation between ANC and log fold change
-corrgenes <- data.frame(matrix(NA, nrow = 23164, ncol = 3))
-corrgenes[,1] <- colnames(res_topx)
-colnames(corrgenes) <- c("gene", "coeff", "pval")
-for(i in 1:23164)
-{
-  cortestres <- cor.test(transpose_counts[,i], as.vector(log(metadata_washout$deltaANC)))
-  corrgenes[i,2] <- cortestres$estimate
-  corrgenes[i,3] <- cortestres$p.value
-}
-corrgenes$padj <- p.adjust(corrgenes$pval, method = "BH")
-
-###ANC correlation calculation
-corrgenes <- data.frame(matrix(NA, nrow = 50, ncol = 3))
-corrgenes[,1] <- colnames(ssgsea_scores)
-colnames(corrgenes) <- c("pathway", "coeff", "pval")
-metadata_washout2 <- subset(metadata_washout, Drug.status=="HU MTD")
-metadata_washout2 <- subset(metadata_washout2, !(metadata_washout2$RNA.ID %in% c("HU21","HU22","HU35","HU36")))
-for(i in 1:50)
-{
-  cortestres <- cor.test(ssgsea_scores[,i], as.vector(metadata_washout2$ANC))
-  corrgenes[i,2] <- cortestres$estimate
-  corrgenes[i,3] <- cortestres$p.value
-}
-corrgenes$padj <- p.adjust(corrgenes$pval, method = "BH")
-####Cell type deconvolution with dtangle
-library(celldex)
-ref <- BlueprintEncodeData(ensembl = T)
-celltyperef <- assays(ref)
-celltyperef <- t(celltyperef[[1]])
-counts_TMM <- GeneSymbolAnnot(counts_TMM, justver =T)
-counts_TMM_t <- t(counts_TMM)
-newvec <- as.vector(colnames(celltyperef))
-ints <- intersect(newvec, colnames(counts_TMM_t))
-counts_TMM_t1 <- subset(counts_TMM_t, select = ints)
-celltyperef <- subset(celltyperef, select = ints)
-counts_TMM_t1[counts_TMM_t1 < 0] <- 0  
-counts_TMM_t1 <- as.data.frame(counts_TMM_t1)
-celltyperef <- as.data.frame(celltyperef)
-counts_TMM_t1 <- counts_TMM_t1[ints]
-celltyperef <- celltyperef[ints]
-celltyperef <- as.matrix(celltyperef)
-counts_TMM_t1 <- as.matrix(counts_TMM_t1)
-library(dtangle)
-dtn <- dtangle(counts_TMM_t1,references=celltyperef, data_type = "rna-seq")
-res1 <- dtn$estimates
