@@ -134,26 +134,11 @@ ggplot(data=pvcadf, aes(x=Effects, y=WAPV)) +
   theme_classic()+scale_x_discrete(limits = pvcadf$Effects)
 
 
-####Sample-sample correlation matrix
-cormat <- counts_TMM
-cormat <- as.data.frame(cor(cormat))
-cormat$sample <- rownames(cormat)
-cormat <- cormat[match(sampleTable$sampleName, cormat$sample),]
-Condition = sampleTable$condition
-annot_sscor = HeatmapAnnotation(Condition = Condition)
-cormat$sample <- NULL
-colnames(cormat) <- gsub("_counts.txt", "", colnames(cormat))
-rownames(cormat) <- gsub("_counts.txt", "", rownames(cormat))
-cormat <- as.matrix(cormat)
-Heatmap(cormat, cluster_rows = T, cluster_columns = T, 
-        top_annotation =  annot_sscor, 
-        heatmap_legend_param=list(title="Correlation Scores"),)
-
 
 
 ####Run SNM for sex and age as fixed effects
 bio.var <- model.matrix(~condition, data = sampleTable)
-adj.var <- model.matrix(~sex + agecategory, data = sampleTable)
+adj.var <- model.matrix(~sex + agecategory + ARC + ANC + WBC, data = sampleTable)
 snm_obj <- snm(counts_TMM, bio.var, adj.var, rm.adj=T)
 snm_counts <- snm_obj$norm.dat
 snm_counts <- as.data.frame(snm_counts)
@@ -296,51 +281,5 @@ commongenes <- intersect(commongenes, genes1)
 commongenes <- intersect(commongenes, genes2)
 
 
-####Single-sample GSEA
-counts_ssgsea <- counts_TMM
-#counts_ssgsea <- tpmmat - for running enrichment analysis with TPM values
-counts_ssgsea <- GeneSymbolAnnot(counts_ssgsea, justver = T)
-ssgsea_scores <- gsva(counts_ssgsea, gset.idx.list = pathwaysH, method="gsva")
-ordered <- c(seq(1,46,2), seq(2,47,2))
-ssgsea_scores <- ssgsea_scores[, c(ordered)]
-#Fetch significant pathways
-#sig_pathways <- fgseaResTidy$pathway[fgseaResTidy$padj < 0.05 & 
-#                       fgseaResTidy$NES > 1.5 | fgseaResTidy$NES < -1.5]
-sig_pathways1 <- fgseaResTidy$pathway[fgseaResTidy$padj < 0.05 & 
-                                       fgseaResTidy$NES > 1.5]
-#sig_pathways1 <- paste0(sig_pathways1, " (UP)")
-sig_pathways2 <- fgseaResTidy$pathway[fgseaResTidy$padj < 0.05 & 
-                                        fgseaResTidy$NES < -1.5]
-#sig_pathways2 <- paste0(sig_pathways2, " (DOWN)")
-sig_pathways <- append(sig_pathways1, sig_pathways2)
-ssgsea_scores <- subset(ssgsea_scores, rownames(ssgsea_scores) %in% sig_pathways)
-#Construct annotation dataframe
-heatmap_ann <- read.csv("C:/Users/varsh/Desktop/GT Research/HU_Response_Omics_2023/GBT_sampleTable_HU_noWashout.csv",
-                        header= TRUE)
-heatmap_ann <- subset(heatmap_ann, select=c(sampleName, condition, age))
-#heatmap_ann <- subset(sampleTable, select=c(sampleName, condition, agecategory))
-#Sort dataframe
-ssgsea_scores_t <- as.data.frame(t(ssgsea_scores))
-ssgsea_scores_t$sample <- rownames(ssgsea_scores_t)
-heatmap_ann <- heatmap_ann[order(heatmap_ann$condition,heatmap_ann$age ),]
-ssgsea_scores_t <- ssgsea_scores_t[match(heatmap_ann$sampleName, rownames(ssgsea_scores_t)),]
-heatmap_ann$sampleName <- NULL
-colnames(heatmap_ann) <- c("Condition", "Age")
-library(circlize)
-col_fun = colorRamp2(c(0, 19.5), c("white", "#10b59c"))
-ha = HeatmapAnnotation(foo = 1:10, col = list(foo = col_fun))
-ha = HeatmapAnnotation(df = heatmap_ann, 
-     col = list(Age=col_fun,
-       Condition = c("pre_HU" = "#ADD8E6", "HU_MTD" = "#00008B")))
-                                                    
-ssgsea_scores_t$sample <- NULL
-ssgsea_scores_t <-  t(ssgsea_scores_t)
-ssgsea_scores_t <- ssgsea_scores_t[match(sig_pathways, rownames(ssgsea_scores_t)),]
-colnames(ssgsea_scores_t) <- gsub("_counts.txt", "", colnames(ssgsea_scores_t))
-rownames(ssgsea_scores_t) <- gsub("^.{0,9}", "", rownames(ssgsea_scores_t))
-rownames(ssgsea_scores_t) <- gsub("_", " ", rownames(ssgsea_scores_t))
-#colnames(ssgsea_scores_t) <- NULL #For plotting only
-Heatmap(ssgsea_scores_t, cluster_rows = F, cluster_columns = F,
-             bottom_annotation=NULL,
-        top_annotation =  ha, heatmap_legend_param=list(title="GSVA Scores"))
+
 
