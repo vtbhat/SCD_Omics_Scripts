@@ -129,66 +129,6 @@ dge <- calcNormFactors(dge, method="TMM")
 #Do log2(cpm)
 counts_TMM <- cpm(dge, log=T, prior.count=3)
 
-####PCA including washout samples
-rownames(sampleTable) <- sampleTable$sampleName
-rownames(sampleTable) <- gsub("_counts.txt", "",rownames(sampleTable))
-colnames(snm_counts) <- gsub("_counts.txt", "",colnames(snm_counts))
-p <- pca(snm_counts, metadata = sampleTable, removeVar = 0.1)
-p$yvars <- gsub("_counts.txt", "", p$yvars)
-#png("Fig2.png", units="in", width=8, height=8, res=600)
-biplot(p, lab=NULL, colby = c('Status'), 
-       pointSize = 4,
-       xlim = c(-150,100), ylim = c(-80, 100),
-       legendPosition="right")+ geom_point()  + theme_minimal() +geom_text(aes(label=sampleTable$sampleName)) +
-  ggforce::geom_mark_ellipse(aes(fill = sampleTable$Status, color = sampleTable$Status)) +
-  theme(panel.grid.minor = element_blank()) +
-  scale_color_discrete(name = 'Status')
-
-dev.off()
-#xlim = c(-200,100), ylim = c(-100, 100),
-#geom_text(aes(label=sampleTable$sampleName))+ 
-#scale_shape_manual(name = 'Age Category', values=c(15, 17))
-
-
-####Principal Variance Components Analysis
-sampleTable_pdata <- subset(sampleTable, select=c("agecategory", "sex", "condition"))
-rownames(sampleTable_pdata) <- sampleTable$sampleName
-#Construct expression set object
-phenodata <- new("AnnotatedDataFrame", data = sampleTable_pdata)
-pvca_input <- ExpressionSet(assayData = counts_TMM, phenoData = phenodata)
-pct_threshold <- 0.5
-batch.factors <- c("agecategory", "sex", "condition")
-pvcaObj <- pvcaBatchAssess (pvca_input, batch.factors, pct_threshold)
-#Plot PVCA results
-bp <- barplot(pvcaObj$dat, xlab = "Effects",
-              ylab = "Weighted average proportion variance",
-              ylim= c(0,1.1),col = c("blue"),
-              main="PVCA estimation bar chart", las=2)
-axis(1, at = bp, labels = pvcaObj$label, xlab = "Effects", cex.axis = 0.5, cex.names = 1.5, las=2)
-values = pvcaObj$dat
-new_values = round(values , 3)
-text(bp,pvcaObj$dat,labels = new_values, pos=3, cex = 0.8)
-#Plot PVCA results with better resoltuion
-pvcadf <- t(as.data.frame(pvcaObj$dat*100))
-pvcadf <- as.data.frame(pvcadf)
-pvcadf$V1 <- pvcadf[order(pvcadf$V1),]
-pvcadf$labels <- c("Sex:Condition", "Age:Sex", "Age:Condition", "Sex",
-                   "Condition", "Age", "Residual")
-bp <- barplot(pvcaObj$dat*100,  xlab= "Effects",names=pvcadf$labels,
-              ylab = "Weighted average proportion variance",
-              ylim= c(0,100),col = c("blue"),
-              main="PVCA estimation bar chart", las=2) 
-colnames(pvcadf) <- c("WAPV", 
-                      "Effects")
-pvcadf$WAPV <- round(pvcadf$WAPV, 2)
-ggplot(data=pvcadf, aes(x=Effects, y=WAPV)) +
-  geom_bar(stat="identity", fill="steelblue")+
-  ylab("Weighted average proportion variance") + ylim(0, 100)+
-  geom_text(aes(label=paste(WAPV, "%")), vjust=-0.3, size=3.5) + 
-  theme_classic()+scale_x_discrete(limits = pvcadf$Effects)
-
-
-
 
 counts_anno <- GeneSymbolAnnot(snm_counts)
 tcell <- c("BIN1", "ANXA2R", "DDX24", "NOP53", "IMP3", "LAGE3", "LIME1", "OCIAD2",
@@ -406,7 +346,6 @@ sig_pathways <- fgseaResTidy$pathway[fgseaResTidy$padj < 0.05 &
 fgseaResTidy1 <- fgseaResTidy[order(fgseaResTidy$padj),]
 sig_pathways <- fgseaResTidy1$pathway[fgseaResTidy1$padj < 0.05]
 sig_pathways1 <- sig_pathways[1:6]
-sig_pathways1 <- sig_pathways1[!sig_pathways1 %in% c("HALLMARK_MTORC1_SIGNALING")]
 #3 columns: pathway name, sample name, enrichment score
 # Load the tidyverse package
 
