@@ -338,7 +338,7 @@ ggplot(newdf, aes(x=Sample, y=Expression)) +
 ##GSVA: Dot-Plot
 counts_ssgsea <- snm_counts
 #counts_ssgsea <- tpmmat - for running enrichment analysis with TPM values
-#counts_ssgsea1 <- GeneSymbolAnnot(counts_ssgsea, justver = T)
+counts_ssgsea1 <- GeneSymbolAnnot(counts_ssgsea, justver = T)
 counts_ssgsea <- as.matrix(counts_ssgsea1)
 ssgsea_scores <- gsva(counts_ssgsea, gset.idx.list = pathwaysH, method="gsva")
 sig_pathways <- fgseaResTidy$pathway[fgseaResTidy$padj < 0.05 &
@@ -346,6 +346,7 @@ sig_pathways <- fgseaResTidy$pathway[fgseaResTidy$padj < 0.05 &
 fgseaResTidy1 <- fgseaResTidy[order(fgseaResTidy$padj),]
 sig_pathways <- fgseaResTidy1$pathway[fgseaResTidy1$padj < 0.05]
 sig_pathways1 <- sig_pathways[1:6]
+sig_pathways1 <- sig_pathways1[!sig_pathways1 %in% c("HALLMARK_MTORC1_SIGNALING")]
 #3 columns: pathway name, sample name, enrichment score
 # Load the tidyverse package
 
@@ -387,6 +388,7 @@ for (i in 1:nrow(heatmap_ann))
 heatmap_ann <- arrange(heatmap_ann, Status)
 heatmap_ann <- arrange(heatmap_ann, desc(Chronic.Pain))
 ssgsea_scores_t <- ssgsea_scores_t[match(heatmap_ann$sampleName, rownames(ssgsea_scores_t)),]
+heatmap_ann1 <- heatmap_ann
 heatmap_ann$sampleName <- NULL
 colnames(heatmap_ann) <- c("Pain Status", "Timepoint")
 
@@ -394,8 +396,10 @@ library(circlize)
 col_fun = colorRamp2(c(0, 19.5), c("white", "#10b59c"))
 ha = HeatmapAnnotation(foo = 1:10, col = list(foo = col_fun))
 ha = HeatmapAnnotation(df = heatmap_ann, 
-                       col = list(Chronic.Pain=col_fun,
-                                  Status = c("Steady State" = "#ADD8E6", "VOE" = "#00008B")))
+     col = list(Chronic.Pain=col_fun,
+     Status = c("Steady State" = "#ADD8E6", "VOE" = "#00008B")),
+     annotation_name_gp = gpar(fontsize= 8, fontface = "plain"),
+     annotation_legend_param = gpar(fontsize= 8, fontface = "plain"))
 
 #Format the SSGSEA scores matrix
 ssgsea_scores_t$sample <- NULL
@@ -404,12 +408,32 @@ ssgsea_scores_t <- ssgsea_scores_t[match(sig_pathways1, rownames(ssgsea_scores_t
 colnames(ssgsea_scores_t) <- gsub("_counts.txt", "", colnames(ssgsea_scores_t))
 rownames(ssgsea_scores_t) <- gsub("^.{0,9}", "", rownames(ssgsea_scores_t))
 rownames(ssgsea_scores_t) <- gsub("_", " ", rownames(ssgsea_scores_t))
+ssgsea_scores_ordered <- ssgsea_scores_t
 totalpescore <- colSums(as.data.frame(ssgsea_scores_t))
 z_scores <- (totalpescore-mean(totalpescore))/sd(totalpescore)
 colnames(ssgsea_scores_t) <- round(z_scores,2) #For plotting only
-Heatmap(ssgsea_scores_t, cluster_rows = F, cluster_columns = F,
-        bottom_annotation=NULL,column_names_rot = 65, column_names_gp = gpar(fontsize = 14),
-        top_annotation =  ha, heatmap_legend_param=list(title="GSVA Scores"))
+zscore_order <- cbind(heatmap_ann1, colnames(ssgsea_scores_t))
+  
+##For creating a df sorted by VOE Z score
+zscore_order <- subset(zscore_order, zscore_order$Chronic.Pain=="Chronic Pain")
+zscore_order_voe <- subset(zscore_order, zscore_order$Status=="VOE")
+zscore_order_ss <- subset(zscore_order, zscore_order$Status=="Steady State")
+zscore_total <- cbind(zscore_order_voe, zscore_order_ss)
+colnames(zscore_total) <- c("SN1", "CP1", "Status1", "zscore1", "SN2",
+                           "CP2", "Status2", "zscore2")
+zscore_total1 <- zscore_total[order(zscore_total$zscore1),]
+#ss_voesortncp <- c(zscore_total1$SN2, zscore_total1$SN1)
+ss_voesortcp <- c(zscore_total1$SN2, zscore_total1$SN1)
+neworder <- c(ss_voesortncp, ss_voesortcp)
+ssgsea_scores_ordered1 <- ssgsea_scores_ordered[,neworder]
+totalpescore <- colSums(as.data.frame(ssgsea_scores_ordered1))
+z_scores <- (totalpescore-mean(totalpescore))/sd(totalpescore)
+colnames(ssgsea_scores_ordered1) <- round(z_scores,2)
 
-sig_pathways1 <- sig_pathways[1:6]
-ssgsea_scores
+Heatmap(ssgsea_scores_ordered1, cluster_rows = F, cluster_columns = F,
+        bottom_annotation=NULL,column_names_rot = 65, column_names_gp = gpar(fontsize = 8),
+        top_annotation =  ha, row_names_gp = gpar(fontsize = 8), 
+        row_title_gp = gpar(fontsize = 8),
+        column_title_gp = gpar(fontsize = 8),
+        heatmap_legend_param=list(title="GSVA Scores", title_gp = gpar(fontsize = 6, fontface = "plain")))
+
