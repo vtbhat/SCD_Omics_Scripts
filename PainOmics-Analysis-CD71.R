@@ -50,9 +50,8 @@ GeneSymbolAnnot <- function(input_matrix, justver = F)
 
 ####Load HTSeq files using DESeq2's function
 ####WILL NOT USE DESeq2 for analysis
-directory <- ("C:/Users/varsh/Desktop/GT Research/PainOmics_2023/HTSeq_PainOmics")
-sampleTable <- read.csv("C:/Users/varsh/Desktop/GT Research/PainOmics_2023/metadata_CD71.csv", header=TRUE)
-#sampleTable <- read.csv("C:/Users/varsh/Desktop/GT Research/Papers_Proposals/Pain_Txp_Manuscript/metadataCD71_SRA.csv", header=TRUE)
+directory <- ("/PainOmics_2023/HTSeq_PainOmics")
+sampleTable <- read.csv("PainOmics_2023/metadata_CD71.csv", header=TRUE)
 sampleTable <- na.omit(sampleTable)
 sampleTable <- subset(sampleTable, sampleTable$Timepoint!="")
 #sampleTable$sampleName <- paste0(sampleTable$CD71_NWGC_ID, ".txt")
@@ -161,7 +160,7 @@ res <- topTable(fit2, coef=2, genelist=fit$genes,number=Inf, adjust="BH")
 ####Annotate with gene symbols
 #Remove version number
 res <- GeneSymbolAnnot(res, justver = T)
-#write.csv(res_x, "C:/Users/varsh/Desktop/GT Research/PainOmics_2023/CD71_DEGs_VOCvsSS_ChronicPain.csv", row.names=FALSE)
+#write.csv(res_x, "PainOmics_2023/CD71_DEGs_VOCvsSS_ChronicPain.csv", row.names=FALSE)
 
 ####Enrichment analysis
 resSig <- res
@@ -185,7 +184,7 @@ fgseaResTidy <- fgseaRes %>%
 #Plotting it
 fgseaResTidy$pathway <- gsub("^.{0,9}", "", fgseaResTidy$pathway)
 fgseaResTidy$pathway <- gsub("_", " ", fgseaResTidy$pathway)
-#pdf(file="C:/Users/varsh/Desktop/GT Research/PainOmics_2023/ASH_2023_Poster/Fig1.pdf", width = 12)
+#pdf(file="PainOmics_2023/ASH_2023_Poster/Fig1.pdf", width = 12)
 ggplot(fgseaResTidy, aes(reorder(pathway, NES), NES)) +
   geom_col(aes(fill=padj<0.05)) +
   coord_flip() +
